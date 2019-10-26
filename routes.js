@@ -37,21 +37,24 @@ const userValidators = [
 ];
 
 // Validate email
-// regex from https://stackoverflow.com/questions/46155/how-to-validate-an-email-address-in-javascript
+// regex validator from https://stackoverflow.com/questions/46155/how-to-validate-an-email-address-in-javascript
 
-
-const emailValidator = body('email').custom( value => {
+function validateEmail(email) {
+  var re = /^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+  return re.test(email);
+}
+const emailValidator = body('emailAddress').custom( email => {
   // See if email already used
-  const user = User.findOne({
-    where: { emailAddress: value }
-  });
-  // check if valide email addres
-  const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
-  const isAnAddress = re.test(String(value).toLowerCase);
-  
-  if (user) { return Promise.reject('E-mail already in use') }
-  if (!isAnAddress) { return Promise.reject('Not a valide E-mail address') }
+  return User.findOne({
+    where: { emailAddress: email.toLowerCase() }
+  })
+  .then( user => {
+    // Reject if email is in use
+    if (user) { return Promise.reject('Email already in use') }
 
+    // reject if invalid email
+    if (!validateEmail(email)) { return Promise.reject('Not a valid E-mail address') }
+  })
 });
 
 // Validate Course data
@@ -117,7 +120,7 @@ router.get('/users', authenticateUser, (req, res) => {
 });
 
 // Create user
-router.post('/users', userValidators , asyncHandler( async(req, res, next) => {
+router.post('/users', [userValidators, emailValidator], asyncHandler( async(req, res, next) => {
   // Validate user data
   const errors = validationResult(req);
 
@@ -132,6 +135,7 @@ router.post('/users', userValidators , asyncHandler( async(req, res, next) => {
 
   // Get user data from request
   const user = req.body;
+  user.emailAddress = user.emailAddress.toLowerCase();
 
   // Hash password and create user
   user.password = bcryptjs.hashSync(user.password);
@@ -146,6 +150,15 @@ router.get('/courses', asyncHandler(async (req, res) => {
     include: [{ model: User }]
   });
   res.json(courses);
+}));
+
+// Get all courses
+router.get('/userAll', asyncHandler(async (req, res) => {
+  const users = await User.findAll({
+    // include user data
+    // include: [{ model: User }]
+  });
+  res.json(users);
 }));
 
 // Get specific course by id
@@ -202,8 +215,15 @@ router.put('/courses/:id', [ authenticateUser, courseValidators ], asyncHandler(
     where: { id: req.params.id }
   });
 
+
+
   // update if course exists
   if(course) {
+    // only course owner can change this course
+    if (course.userId != req.currentUser.id) {
+      res.status(403).end();
+    }
+
     course.update(update);
     res.status(204).end();
   } else {
@@ -221,6 +241,11 @@ router.delete('/courses/:id', authenticateUser, asyncHandler( async (req, res, n
 
   // delete if exists
   if (course) {
+    // only course owner can change this course
+    if (course.userId != req.currentUser.id) {
+      res.status(403).end();
+    }
+
     course.destroy();
     res.status(204).end();
   } else {
