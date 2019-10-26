@@ -146,26 +146,25 @@ router.post('/users', [userValidators, emailValidator], asyncHandler( async(req,
 // Get all courses
 router.get('/courses', asyncHandler(async (req, res) => {
   const courses = await Course.findAll({
+    attributes: { exclude: ['createdAt', 'updatedAt'] },
     // include user data
-    include: [{ model: User }]
+    include: [{ 
+      model: User , 
+      attributes: { exclude: ['password', 'createdAt', 'updatedAt'] },
+    }]
   });
   res.json(courses);
-}));
-
-// Get all courses
-router.get('/userAll', asyncHandler(async (req, res) => {
-  const users = await User.findAll({
-    // include user data
-    // include: [{ model: User }]
-  });
-  res.json(users);
 }));
 
 // Get specific course by id
 router.get('/courses/:id', asyncHandler( async (req, res, next) => {
   // Find course by id
   const course = await Course.findOne({
-    include: [{ model: User }],
+    attributes: { exclude: ['createdAt', 'updatedAt'] },
+    include: [{ 
+      model: User, 
+      attributes: { exclude: ['password', 'createdAt', 'updatedAt'] }, 
+    }],
     where: { id: req.params.id }
   });
 
